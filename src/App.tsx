@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Onboarding from './components/Onboarding'
 import { AppContext } from './lib/context'
 import type { UserProfile } from './lib/constants'
-import { getAvatarColor, getInitials } from './lib/constants'
+import { getAvatarSvg, svgToDataUrl } from './lib/constants'
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null)
@@ -17,16 +17,12 @@ export default function App() {
 }
 
 function WelcomeScreen({ user }: { user: UserProfile }) {
-  const color = getAvatarColor(user.avatar_id)
-  const initials = getInitials(user.display_name)
+  const avatarDataUrl = svgToDataUrl(getAvatarSvg(user.avatar_id))
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 animate-fade-in">
-      <div
-        className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold mb-5 shadow-lg"
-        style={{ backgroundColor: color.bg, color: color.text }}
-      >
-        {initials}
+      <div className="w-24 h-24 rounded-full overflow-hidden bg-slate-100 mb-5 shadow-lg ring-2 ring-slate-200">
+        <img src={avatarDataUrl} alt={user.display_name} className="w-full h-full object-cover" />
       </div>
       <h1 className="text-3xl font-bold text-slate-900 mb-2">
         Welcome, {user.display_name.split(' ')[0]}!

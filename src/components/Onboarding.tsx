@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   INTERESTS,
-  AVATAR_IDS,
-  getAvatarColor,
-  getInitials,
+  AVATARS,
+  svgToDataUrl,
   type UserProfile,
 } from '../lib/constants'
 
@@ -152,7 +151,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             <StepAvatar
               avatarId={avatarId}
               setAvatarId={setAvatarId}
-              displayName={displayName}
             />
           )}
           {step === 1 && (
@@ -226,47 +224,49 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 function StepAvatar({
   avatarId,
   setAvatarId,
-  displayName,
 }: {
   avatarId: string
   setAvatarId: (id: string) => void
-  displayName: string
 }) {
   return (
     <div>
       <h2 className="text-2xl font-bold text-slate-900 mb-1">Pick your avatar</h2>
-      <p className="text-slate-500 text-sm mb-6">
-        This is how others will see you. No photos needed — just a vibe.
+      <p className="text-slate-500 text-sm mb-2">
+        This is how others will see you.
       </p>
-      <div className="grid grid-cols-4 gap-4">
-        {AVATAR_IDS.map((id) => {
-          const color = getAvatarColor(id)
-          const isSelected = avatarId === id
-          const initials = displayName.trim()
-            ? getInitials(displayName)
-            : id.slice(-2)
+      <div className="flex gap-2 mb-4">
+        <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">01–10 Male</span>
+        <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">11–20 Female</span>
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        {AVATARS.map((avatar) => {
+          const isSelected = avatarId === avatar.id
+          const dataUrl = svgToDataUrl(avatar.svg)
           return (
             <button
-              key={id}
-              onClick={() => setAvatarId(id)}
-              className="flex flex-col items-center gap-1.5 group"
+              key={avatar.id}
+              onClick={() => setAvatarId(avatar.id)}
+              className="flex flex-col items-center gap-1 group"
             >
               <div
-                className={`w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold transition-all duration-200 ${
+                className={`w-16 h-16 rounded-full overflow-hidden bg-slate-100 transition-all duration-200 ${
                   isSelected
                     ? 'ring-4 ring-blue-500 ring-offset-2 ring-offset-slate-50 scale-105'
-                    : 'group-hover:scale-105 group-active:scale-95'
+                    : 'group-hover:scale-105 group-active:scale-95 ring-2 ring-transparent'
                 }`}
-                style={{ backgroundColor: color.bg, color: color.text }}
               >
-                {initials}
+                <img
+                  src={dataUrl}
+                  alt={avatar.id}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span
-                className={`text-[10px] font-medium transition-colors ${
+                className={`text-[10px] font-semibold transition-colors ${
                   isSelected ? 'text-blue-600' : 'text-slate-400'
                 }`}
               >
-                {id.replace('avatar_', '#')}
+                {avatar.id.replace('avatar_', '#')}
               </span>
             </button>
           )
