@@ -8,6 +8,7 @@ interface FeedIntent {
   bio: string | null
   datetime: string
   user_id: string
+  companion_count: number
   users: {
     display_name: string
     avatar_id: string | null
@@ -52,7 +53,7 @@ function formatDateTime(iso: string): string {
   return `${dateStr} at ${time}`
 }
 
-export default function HomeFeed({ onPostIntent }: { onPostIntent: () => void }) {
+export default function HomeFeed({ onPostIntent, onOpenMatch }: { onPostIntent: () => void; onOpenMatch: (intentId: string) => void }) {
   const [intents, setIntents] = useState<FeedIntent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +65,7 @@ export default function HomeFeed({ onPostIntent }: { onPostIntent: () => void })
       const { data, error } = await supabase
         .from('intents')
         .select(
-          `id, activity_type, bio, datetime, user_id,
+          `id, activity_type, bio, datetime, user_id, companion_count,
            users!inner ( display_name, avatar_id, bio ),
            venues ( name )`
         )
@@ -130,7 +131,8 @@ export default function HomeFeed({ onPostIntent }: { onPostIntent: () => void })
             return (
               <div
                 key={intent.id}
-                className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-shadow"
+                onClick={() => onOpenMatch(intent.id)}
+                className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer"
               >
                 <div className="flex items-start gap-3">
                   {/* Avatar */}
