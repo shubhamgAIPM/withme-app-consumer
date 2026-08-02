@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useApp } from '../lib/context'
 
 interface ChatMessage {
@@ -63,7 +62,7 @@ export default function AIConcierge() {
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'ai',
-        text: data.text ?? 'Sorry, I could not generate a response.',
+        text: data.output_text ?? 'Sorry, I could not generate a response.',
       }
       setMessages((prev) => [...prev, aiMsg])
     } catch (err) {
