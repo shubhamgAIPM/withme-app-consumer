@@ -32,6 +32,17 @@ interface CurrentIntent {
   gender_rule: string
   user_id: string
   venue_id: string | null
+  users: {
+    display_name: string
+    avatar_id: string | null
+    gender: string
+    meetup_count: number
+    rating: number
+    interests: string[]
+  } | null
+  venues: {
+    name: string
+  } | null
 }
 
 interface MatchScreenProps {
@@ -71,10 +82,13 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
       setLoading(true)
       setError(null)
 
-      // Fetch the current intent
       const { data: intent, error: intentError } = await supabase
         .from('intents')
-        .select('id, activity_type, datetime, companion_count, gender_rule, user_id, venue_id')
+        .select(
+          `id, activity_type, datetime, companion_count, gender_rule, user_id, venue_id,
+           users ( display_name, avatar_id, gender, meetup_count, rating, interests ),
+           venues ( name )`
+        )
         .eq('id', intentId)
         .maybeSingle()
 
@@ -87,12 +101,6 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
       const ci = intent as unknown as CurrentIntent
       setCurrentIntent(ci)
 
-      // Query other open intents with similar activity_type and overlapping datetime (within ±3 hours)
-      const startTime = new Date(ci.datetime)
-      startTime.setHours(startTime.getHours() - 3)
-      const endTime = new Date(ci.datetime)
-      endTime.setHours(endTime.getHours() + 3)
-
       const { data: rawCandidates, error: candError } = await supabase
         .from('intents')
         .select(
@@ -101,10 +109,8 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
            venues ( name )`
         )
         .eq('status', 'open')
-        .ilike('activity_type', `%${ci.activity_type}%`)
-        .gte('datetime', startTime.toISOString())
-        .lte('datetime', endTime.toISOString())
-        .neq('user_id', ci.user_id)
+        .neq('id', intentId)
+        .neq('user_id', user?.id ?? '')
         .order('datetime', { ascending: true })
 
       if (candError) {
@@ -115,16 +121,20 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
 
       const all = (rawCandidates ?? []) as unknown as CandidateIntent[]
 
-      // Gender filtering:
-      // If the current intent's companion_count is 1 (gender_rule 'same'),
-      // only show candidates whose gender matches the current user's gender.
-      // If companion_count is 3+, show any gender.
+      const posterGender = ci.users?.gender
+
       let filtered = all
-      if (ci.companion_count === 1 && user?.gender) {
-        filtered = all.filter((c) => c.users?.gender === user.gender)
+      if (ci.companion_count === 1 && posterGender) {
+        filtered = all.filter((c) => c.users?.gender === posterGender)
       }
 
-      setCandidates(filtered)
+      const sorted = [...filtered].sort((a, b) => {
+        const aMatch = a.activity_type.toLowerCase() === ci.activity_type.toLowerCase() ? 0 : 1
+        const bMatch = b.activity_type.toLowerCase() === ci.activity_type.toLowerCase() ? 0 : 1
+        return aMatch - bMatch
+      })
+
+      setCandidates(sorted)
       setLoading(false)
     }
     load()
@@ -185,6 +195,24 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
     )
   }
 
+  const isOwnIntent = currentIntent?.user_id === user?.id
+  const posterAsCandidate: CandidateIntent | null =
+    !isOwnIntent && currentIntent?.users
+      ? {
+          id: currentIntent.id,
+          user_id: currentIntent.user_id,
+          venue_id: currentIntent.venue_id,
+          activity_type: currentIntent.activity_type,
+          datetime: currentIntent.datetime,
+          companion_count: currentIntent.companion_count,
+          gender_rule: currentIntent.gender_rule,
+          users: currentIntent.users,
+          venues: currentIntent.venues,
+        }
+      : null
+
+  const allCandidates = posterAsCandidate ? [posterAsCandidate, ...candidates] : candidates
+
   return (
     <div className="min-h-screen pb-6">
       {/* Header */}
@@ -210,7 +238,7 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
       </div>
 
       {/* Candidates */}
-      {candidates.length === 0 ? (
+      {allCandidates.length === 0 ? (
         <div className="flex flex-col items-center justify-center px-6 pt-24 text-center">
           <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
             <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -226,13 +254,13 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
         </div>
       ) : (
         <div className="px-4 pt-4 space-y-3">
-          {candidates.map((c) => {
+          {allCandidates.map((c, idx) => {
             const u = c.users
             const avatarSvg = u?.avatar_id ? getAvatarSvg(u.avatar_id) : ''
             const avatarUrl = avatarSvg ? svgToDataUrl(avatarSvg) : ''
             return (
               <div
-                key={c.id}
+                key={c.id + idx}
                 className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm"
               >
                 <div className="flex items-start gap-3">
@@ -254,6 +282,11 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
                         </svg>
                         Verified
                       </span>
+                      {idx === 0 && posterAsCandidate && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">
+                          Poster
+                        </span>
+                      )}
                     </div>
 
                     {/* Stats row */}
