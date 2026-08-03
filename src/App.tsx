@@ -44,7 +44,7 @@ export default function App() {
                   />
                 )}
                 {screen.tab === 'concierge' && <AIConcierge />}
-                {screen.tab === 'profile' && <TrustProfile />}
+                {screen.tab === 'profile' && <TrustProfile onOpenMatch={(matchId) => setScreen({ name: 'group', matchId })} />}
               </div>
 
               {/* Bottom tab bar */}

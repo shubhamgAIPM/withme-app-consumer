@@ -149,7 +149,7 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
     setConfirming(candidate.id)
 
     const intentIds = [currentIntent.id, candidate.id]
-    const memberIds = [currentIntent.user_id, candidate.user_id]
+    const memberIds = [user.id, candidate.user_id]
     const groupSize = 2
     const genderMix =
       currentIntent.companion_count === 1 && candidate.companion_count === 1

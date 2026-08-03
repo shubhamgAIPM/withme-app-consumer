@@ -11,6 +11,15 @@ interface ActivityLogEntry {
   created_at: string
 }
 
+interface UpcomingPlan {
+  id: string
+  status: string
+  group_size: number
+  datetime: string | null
+  member_ids: string[]
+  venues: { name: string } | null
+}
+
 interface UserProfileData {
   id: string
   display_name: string
@@ -39,10 +48,29 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export default function TrustProfile() {
+function formatPlanDate(iso: string): string {
+  const date = new Date(iso)
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const isTomorrow = date.toDateString() === tomorrow.toDateString()
+  const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  if (sameDay) return `Today at ${time}`
+  if (isTomorrow) return `Tomorrow at ${time}`
+  const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  return `${dateStr} at ${time}`
+}
+
+interface TrustProfileProps {
+  onOpenMatch: (matchId: string) => void
+}
+
+export default function TrustProfile({ onOpenMatch }: TrustProfileProps) {
   const { user } = useApp()
   const [profile, setProfile] = useState<UserProfileData | null>(null)
   const [activities, setActivities] = useState<ActivityLogEntry[]>([])
+  const [upcomingPlans, setUpcomingPlans] = useState<UpcomingPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,6 +93,24 @@ export default function TrustProfile() {
       }
 
       setProfile(profileData as unknown as UserProfileData)
+
+      const { data: plansData, error: plansError } = await supabase
+        .from('matches')
+        .select(
+          `id, status, group_size, datetime, member_ids,
+           venues ( name )`
+        )
+        .in('status', ['pending', 'confirmed'])
+        .order('datetime', { ascending: true })
+
+      if (plansError) {
+        setError(plansError.message)
+        setLoading(false)
+        return
+      }
+
+      const allPlans = (plansData ?? []) as unknown as UpcomingPlan[]
+      setUpcomingPlans(allPlans.filter((p) => p.member_ids?.includes(user.id)))
 
       const { data: logData, error: logError } = await supabase
         .from('activity_log')
@@ -177,6 +223,47 @@ export default function TrustProfile() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Upcoming Plans */}
+      <div className="px-4 pt-5">
+        <h3 className="text-sm font-bold text-slate-700 mb-3 px-1">Upcoming Plans</h3>
+        {upcomingPlans.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+              <svg className="w-7 h-7 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-slate-400 text-sm">No upcoming plans yet. Your confirmed meetups will show here!</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {upcomingPlans.map((plan) => (
+              <button
+                key={plan.id}
+                onClick={() => onOpenMatch(plan.id)}
+                className="w-full bg-white rounded-xl border border-slate-100 p-3.5 flex items-center justify-between text-left hover:border-blue-200 hover:shadow-sm active:scale-[0.98] transition-all"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{plan.venues?.name ?? 'Venue TBD'}</p>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${plan.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {plan.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {plan.datetime ? formatPlanDate(plan.datetime) : 'Time TBD'}
+                    <span className="text-slate-300"> · {plan.group_size} people</span>
+                  </p>
+                </div>
+                <svg className="w-4 h-4 text-slate-300 flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Activity log */}
