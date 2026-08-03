@@ -101,7 +101,11 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
       const ci = intent as unknown as CurrentIntent
       setCurrentIntent(ci)
 
-      const { data: rawCandidates, error: candError } = await supabase
+      const intentDate = new Date(ci.datetime)
+      const windowStart = new Date(intentDate.getTime() - 4 * 60 * 60 * 1000)
+      const windowEnd = new Date(intentDate.getTime() + 4 * 60 * 60 * 1000)
+
+      let query = supabase
         .from('intents')
         .select(
           `id, user_id, venue_id, activity_type, datetime, companion_count, gender_rule,
@@ -109,9 +113,17 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
            venues ( name )`
         )
         .eq('status', 'open')
+        .eq('activity_type', ci.activity_type)
+        .gte('datetime', windowStart.toISOString())
+        .lte('datetime', windowEnd.toISOString())
         .neq('id', intentId)
         .neq('user_id', user?.id ?? '')
-        .order('datetime', { ascending: true })
+
+      if (ci.venue_id) {
+        query = query.eq('venue_id', ci.venue_id)
+      }
+
+      const { data: rawCandidates, error: candError } = await query.order('datetime', { ascending: true })
 
       if (candError) {
         setError(candError.message)
@@ -119,22 +131,14 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
         return
       }
 
-      const all = (rawCandidates ?? []) as unknown as CandidateIntent[]
+      let filtered = (rawCandidates ?? []) as unknown as CandidateIntent[]
 
       const posterGender = ci.users?.gender
-
-      let filtered = all
       if (ci.companion_count === 1 && posterGender) {
-        filtered = all.filter((c) => c.users?.gender === posterGender)
+        filtered = filtered.filter((c) => c.users?.gender === posterGender)
       }
 
-      const sorted = [...filtered].sort((a, b) => {
-        const aMatch = a.activity_type.toLowerCase() === ci.activity_type.toLowerCase() ? 0 : 1
-        const bMatch = b.activity_type.toLowerCase() === ci.activity_type.toLowerCase() ? 0 : 1
-        return aMatch - bMatch
-      })
-
-      setCandidates(sorted)
+      setCandidates(filtered)
       setLoading(false)
     }
     load()
@@ -245,11 +249,9 @@ export default function MatchScreen({ intentId, onBack, onMatch }: MatchScreenPr
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
-          <p className="text-slate-700 font-semibold mb-1">No matches yet</p>
+          <p className="text-slate-700 font-semibold mb-1">No matches yet — check back soon</p>
           <p className="text-slate-400 text-sm">
-            {currentIntent?.companion_count === 1
-              ? 'No one with the same activity and gender nearby. Try widening your search later.'
-              : 'No one with the same activity nearby yet. Check back soon!'}
+            No one has posted a compatible intent for this activity, venue, and time yet.
           </p>
         </div>
       ) : (
